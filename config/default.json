@@ -1,0 +1,18 @@
+{
+  "app": {
+    "name": "VoxSync Ai",
+    "logo_path": "LogoIcon.png"
+  },
+  "paths": {
+    "jobs": "data/jobs",
+    "models": "models",
+    "logs": "logs"
+  },
+  "runtime": {
+    "local_only": true,
+    "device_preference": "auto",
+    "max_concurrent_gpu_stages": 1,
+    "ram_target_gib": 10,
+    "ram_limit_gib": 12
+  }
+}

@@ -1,0 +1,648 @@
+ENGLISH-TO-HINDI AI VIDEO DUBBING STUDIO MASTER PROJECT PLAN AND CODEX
+IMPLEMENTATION INSTRUCTIONS Version: 1.0 Target: Windows desktop + local
+web interface Execution: Fully local inference on the user’s laptop
+Hardware baseline: Lenovo LOQ, NVIDIA RTX 4050 6 GB VRAM, 16 GB RAM
+Primary goal: Best practical overall dubbing quality, including
+translation, speaker identity, emotion, timing, and audio/video
+reconstruction
+
+PROJECT IDENTITY
+Application name: VoxSync Ai
+Application logo: LogoIcon.png in the project root
+Brand the desktop app, local web app, documentation, and generated
+reports consistently as VoxSync Ai. Keep the supplied logo asset; do not
+replace or redraw it.
+
+RESOURCE BUDGET
+Target peak application RAM use: under 10 GiB where practical.
+Maximum planned peak application RAM use: 12 GiB on the 16 GiB baseline
+machine. Measure this with real model workloads before claiming it is
+met; warn and provide a smaller-model/CPU fallback if a stage exceeds
+the budget. Keep model downloads optional and avoid bundling model
+weights by default.
+
+============================================================ 0.
+IMPORTANT INSTRUCTIONS FOR CODEX
+============================================================
+
+You are the implementation agent for this project. Work carefully and
+incrementally.
+
+PROJECT RULES 1. Do not attempt to implement all six phases in one pass.
+2. Complete only the current phase requested by the user. Start with
+Phase 1 unless the user explicitly asks for another phase. 3. Inspect
+the existing repository before editing. If the repository already
+contains code, preserve useful code and conventions instead of replacing
+everything. 4. Before changing files, summarize the current structure
+and propose the smallest sensible implementation plan. 5. Do not
+redesign, remove, or change existing unrelated features. 6. Do not claim
+a model works until you have run a real local test and recorded the
+result. 7. Do not invent benchmark scores, hardware performance, model
+capabilities, or test results. 8. Keep inference fully local. Do not
+upload user videos, audio, transcripts, voice samples, or frames to a
+remote service. 9. Do not add paid APIs, cloud inference, analytics,
+telemetry, or automatic external uploads. 10. Internet may be used by
+the user to download packages and model weights during setup. After
+required assets are downloaded, inference must run locally. 11. Check
+each model’s current license, permitted use, supported languages,
+hardware requirements, and redistribution restrictions before
+integration. Document any restrictions. 12. Use only voice samples the
+user owns or is authorized to process. Do not add functionality intended
+to impersonate someone deceptively. Clearly identify generated dubbing
+as AI-generated where appropriate. 13. The user’s laptop has 6 GB VRAM
+and 16 GB RAM. Optimize for constrained hardware: sequential model
+loading, smaller models, optional quantization where supported, short
+chunks, batch size 1, and explicit model unloading. 14. Never assume
+every model can share one Python environment. Use isolated environments
+or optional adapters if dependency conflicts require it. 15. Keep
+secrets, credentials, local video files, model weights, cache files,
+generated media, and user data out of Git. 16. Never delete or overwrite
+original media. All generated assets must go to a separate job/output
+directory. 17. All long-running work must run as a background job with
+progress reporting, cancellation where practical, and understandable
+error messages. 18. If a feature is not feasible on the current
+hardware, document the limitation and provide a tested fallback rather
+than silently degrading quality. 19. Prefer readable, typed, modular
+code with tests. Avoid giant files, duplicated logic, unexplained magic
+values, and unnecessary abstractions. 20. At the end of each phase, run
+relevant tests and report: files changed, commands run, actual results,
+known issues, and the next phase’s prerequisites.
+
+PROJECT SUCCESS DEFINITION The application can accept a short English
+video, transcribe it, translate dialogue into Hindi, generate Hindi
+speech using a compatible local TTS/voice-reference approach,
+synchronize and mix the audio, and export an MP4. Quality must be
+measured rather than assumed. The initial goal is a 15–30 second clip
+with one speaker. Full-length movie processing is a later optimization.
+
+============================================================ 1. PROJECT
+GOALS AND NON-GOALS
+============================================================
+
+MAIN GOALS - Convert English dialogue in a video into natural Hindi. -
+Preserve the source speaker’s vocal identity as closely as the tested
+models allow. - Preserve emotion and delivery where possible: calm,
+excited, angry, sad, whispering, emphasis, pauses, and rhythm. -
+Maintain consistent voices for the same speakers across a clip. - Keep
+Hindi dialogue timing reasonably aligned with the original scene. -
+Preserve original background music and sound effects when they can be
+separated reliably. - Export a playable MP4 and optional Hindi
+subtitles. - Provide both a Windows desktop interface and a local web
+interface. - Keep all video/audio inference and processing on the user’s
+own computer. - Benchmark models on identical clips before choosing
+defaults.
+
+IMPORTANT LIMITATIONS - Do not promise an exact replica of a real voice,
+perfect emotion preservation, or perfect lip synchronization. - English
+and Hindi sentences have different lengths and grammatical structures.
+Timing may require translation adaptation, speech-rate adjustment,
+pauses, or limited silence changes. - Voice similarity, Hindi
+pronunciation, translation quality, and expressive delivery can
+conflict. Expose quality settings instead of claiming one model is best
+at everything. - Lip-sync tools may modify faces and can have quality,
+licensing, and compatibility limitations. Treat lip sync as optional and
+separate from the first working dub. - Source separation can introduce
+artifacts. Include a mode that keeps the original audio when separation
+quality is poor. - Do not train a large model from scratch for the
+initial project. Start with compatible pretrained models and evaluate
+them.
+
+============================================================ 2. TARGET
+ARCHITECTURE
+============================================================
+
+Use a shared Python core so the desktop and web interfaces call the same
+pipeline.
+
+SUGGESTED REPOSITORY STRUCTURE HindiDubStudio/ apps/ desktop/ PySide6
+Windows application web/ React + Vite local browser interface backend/
+api/ FastAPI endpoints core/ configuration, logging, exceptions, job
+models jobs/ background job manager and progress updates services/
+media/ FFmpeg probing, extraction, muxing, export separation/ optional
+speech/music separation transcription/ ASR adapters and timestamp
+normalization diarization/ speaker detection and segment assignment
+translation/ translation adapters and dialogue adaptation voice/ TTS,
+voice-reference and emotion adapters timing/ duration fitting and
+alignment subtitles/ SRT/VTT creation rendering/ final audio mix and
+video export evaluation/ benchmark metrics and report generation
+storage/ local job metadata and path management benchmarks/ clips/
+user-authorized short test clips; do not commit media manifests/ test
+definitions and expected references results/ generated benchmark
+CSV/JSON/reports; ignore private data README.md benchmark procedure
+configs/ default.yaml models.example.yaml scripts/ check_environment.py
+benchmark_models.py run_smoke_test.py tests/ unit/ integration/ docs/
+architecture.md setup_windows.md model_licenses.md troubleshooting.md
+privacy.md requirements/ core.txt desktop.txt web.txt asr.txt
+translation.txt tts.txt .gitignore README.md
+
+Do not force this exact structure if the existing repository has a
+better established pattern. Explain any deviation.
+
+CORE DATA FLOW 1. Validate input video and inspect codecs, duration,
+frame rate, audio streams, and file size. 2. Extract audio to a
+temporary working directory without altering the source. 3. Optionally
+separate dialogue from background music/effects. 4. Detect speech and
+transcribe English with word/segment timestamps. 5. Detect speakers
+where feasible and associate each segment with a speaker ID. 6.
+Translate segments to Hindi while preserving meaning, character intent,
+names, and context. 7. Allow transcript correction before speech
+generation. 8. Generate Hindi speech with a selected compatible
+TTS/voice-reference model. 9. Evaluate the generated speech and adjust
+timing conservatively. 10. Mix generated dialogue with original
+background audio if available. 11. Create optional Hindi subtitles. 12.
+Mux audio and video into a new output file. 13. Run final media
+validation and provide the output path and quality report.
+
+LOCAL SERVICE - FastAPI is the shared backend. - The desktop app and web
+UI must use the same service functions; do not duplicate the pipeline in
+each UI. - Bind the service to 127.0.0.1 by default, not all network
+interfaces. - Add a visible local-service status indicator. - The web UI
+must not expose files outside selected job directories. - Validate every
+requested file path and prevent path traversal. - Use a local job
+database such as SQLite for job status and settings, not media
+contents. - Use a job workspace such as: data/jobs//input/
+data/jobs//work/ data/jobs//output/ data/jobs//reports/ - Keep source
+media untouched. - Use WebSocket or polling for progress; choose the
+simpler reliable option first. - Support cancellation at safe pipeline
+boundaries. - Do not run two GPU-heavy model stages simultaneously by
+default.
+
+============================================================ 3. MODEL
+SELECTION AND BENCHMARK POLICY
+============================================================
+
+Model names below are candidates, not pre-approved guarantees. Before
+integration, verify current repositories, checkpoints, licenses,
+supported language pairs, installation requirements, and local inference
+support.
+
+A. SPEECH RECOGNITION Candidate: faster-whisper using a small or medium
+model according to measured VRAM. Benchmark: - Word error rate if a
+corrected reference transcript is available. - Names and punctuation
+accuracy. - Timestamp alignment. - Runtime and peak VRAM/RAM. -
+Robustness to music and noisy dialogue.
+
+B. ENGLISH-TO-HINDI TRANSLATION Candidate: IndicTrans2 and at least one
+suitable local multilingual alternative. Benchmark: - Meaning
+preservation. - Natural spoken Hindi, not merely literal translation. -
+Correct pronouns, gender, tense, names, idioms, and context. -
+Consistency across adjacent lines. - Human review of the same test
+examples. - Runtime and memory. Do not translate each tiny segment
+without context if that harms meaning. Pass neighboring lines and
+speaker context when supported, while maintaining segment boundaries.
+
+C. HINDI SPEECH GENERATION AND VOICE REFERENCE Candidates to
+investigate: XTTS-v2, OpenVoice with a compatible Hindi base TTS if
+technically valid, and other currently maintained local Hindi-capable
+TTS/voice-cloning models discovered during research. Before choosing: -
+Confirm Hindi output works in the actual checkpoint, not just in a
+marketing description. - Confirm cross-language voice reference is
+supported for English source voice to Hindi output. - Confirm the model
+runs within 6 GB VRAM or has a documented CPU/offload fallback. - Check
+license and use restrictions. - Test Hindi pronunciation and voice
+similarity using authorized reference audio. - Check whether
+emotion/prosody controls are genuinely supported. - Record dependency
+conflicts and setup complexity. Do not claim that voice identity or
+emotion is preserved if the model only generates a generic voice.
+
+D. EXPRESSIVE SPEECH TRANSLATION RESEARCH SeamlessExpressive may be
+studied as a reference for expressive speech translation, but do not
+assume it supports English-to-Hindi output. Confirm the exact supported
+language pair before any integration. OpenVoice V2 has published
+native-language limitations; do not assume Hindi output merely because
+cross-lingual voice cloning is advertised. A compatible Hindi base TTS
+must be demonstrated in a test. Do not make a research model a required
+runtime dependency unless it passes the project tests.
+
+E. SOURCE SEPARATION Candidate: Demucs or a maintained compatible
+alternative. Treat as optional because separation can use substantial
+VRAM and can introduce artifacts. Compare: - Dialogue intelligibility
+after separation. - Music/effect artifacts. - GPU memory and runtime.
+Provide a no-separation fallback.
+
+F. OPTIONAL LIP SYNCHRONIZATION Investigate Wav2Lip or an appropriate
+maintained alternative only after the audio dubbing pipeline is
+reliable. Check license and usage conditions carefully. Keep lip
+synchronization off by default until the user enables it. Do not make
+face modification a prerequisite for exporting a dubbed video.
+
+BENCHMARK SET Create 5–10 short, user-authorized clips covering: - Clear
+single-speaker neutral dialogue. - Fast speech. - Emotional speech. - A
+clip with background music. - A clip with names or idioms. - A
+multi-speaker clip after single-speaker tests pass. Start with one 15–30
+second single-speaker clip to prove the pipeline.
+
+For every run, record: - Test clip ID and duration (avoid storing
+private original media in reports). - Model name, exact
+revision/checkpoint, configuration, and license reference. - Operating
+system, Python version, CUDA/PyTorch versions, GPU name. - Processing
+time per stage and total processing time. - Peak VRAM and RAM if
+measurable. - ASR reference error rate where reference text exists. -
+Translation review score. - Hindi intelligibility and pronunciation
+score. - Voice similarity score and method used. - Emotion/prosody
+review score. - Timing mismatch and final output validation. - Known
+failures and human notes.
+
+Suggested initial weighted quality score: - Translation accuracy: 25% -
+Naturalness and Hindi intelligibility: 20% - Voice identity similarity:
+20% - Emotion and prosody: 15% - Timing fit: 10% - Runtime and memory
+efficiency: 10%
+
+These are project-defined weights, not published results. Keep the
+individual scores visible. Do not let a high total score hide a severe
+failure in Hindi output or voice identity. Human listening is mandatory
+for subjective qualities; automated speaker embeddings are only
+supporting evidence.
+
+============================================================ PHASE 1 —
+REPOSITORY AUDIT, ENVIRONMENT, AND FEASIBILITY
+============================================================
+
+GOAL Establish a clean, reproducible Windows development environment and
+prove GPU access before building the application.
+
+CODEX TASKS 1. Inspect the repository, current branch, uncommitted
+changes, existing code, README, and dependency files. 2. Do not
+overwrite or delete existing project files without explaining why and
+getting user approval when destructive. 3. Create or update
+docs/architecture.md and docs/setup_windows.md. 4. Check Windows
+version, Python version, NVIDIA driver, GPU visibility, free disk space,
+and FFmpeg availability. 5. Create a Python environment for the core.
+Start with Python 3.10 unless a selected model demonstrably requires
+another supported version. 6. Verify PyTorch/CUDA compatibility using
+the currently supported installation instructions. Do not blindly
+install a CUDA toolkit if the installed PyTorch package already includes
+the needed runtime. 7. Implement scripts/check_environment.py. It should
+report: - Python and OS versions. - NVIDIA GPU and driver visibility. -
+PyTorch version and CUDA availability. - Available VRAM if accessible. -
+FFmpeg/ffprobe availability. - Disk space and key dependency status. 8.
+Add .gitignore entries for virtual environments, local model caches,
+data/jobs, user media, logs, secrets, and benchmark audio. 9. Add a
+simple configuration file for paths, device preference, logging, and
+local-only settings. 10. Do not download every candidate model yet.
+First confirm the environment and estimate disk requirements. 11. Write
+a short privacy policy stating that media remains local and is not
+uploaded. 12. Add a smoke test for importing the core and checking
+FFmpeg.
+
+ACCEPTANCE CRITERIA - Environment report runs and accurately reports
+GPU/CPU status. - FFmpeg and ffprobe are discoverable. - The core
+package imports. - No user media, model weights, or secrets are tracked
+by Git. - Setup instructions can be followed from a clean environment. -
+Existing unrelated project functionality remains unchanged.
+
+PHASE 1 OUTPUT - Working environment check script. - Setup
+instructions. - Architecture and privacy documentation. -
+Dependency/environment report. - No complete UI and no full dubbing
+pipeline yet.
+
+STOP AFTER PHASE 1. Report actual test results and ask before proceeding
+to Phase 2.
+
+============================================================ PHASE 2 —
+MODEL BENCHMARK LAB
+============================================================
+
+GOAL Select feasible local ASR, translation, and Hindi
+TTS/voice-reference components using real tests on the user’s hardware.
+
+CODEX TASKS 1. Create adapters/interfaces for ASR, translation, and TTS
+so models can be swapped without rewriting the application. 2. Do not
+build UI features in this phase. 3. Add a benchmark manifest format, for
+example JSON or YAML, that defines clip path, language, reference
+transcript (if available), and test tags. 4. Keep private clips outside
+Git and document how the user supplies them. 5. Start with one 15–30
+second clip and one speaker. 6. Run the environment check and a baseline
+faster-whisper test. 7. Benchmark at least two English-to-Hindi
+translation candidates on identical text. 8. Test at least one
+Hindi-capable TTS/voice-reference candidate with an authorized English
+voice sample. 9. Verify that generated speech is actually Hindi,
+intelligible, and compatible with the installed model version. 10. Test
+GPU memory use, CPU fallback if available, and model loading/unloading
+behavior. 11. Add a script that exports benchmark results to CSV and
+JSON. 12. Save a human-readable report with exact versions, commands,
+results, limitations, and license notes. 13. If a candidate fails,
+record the full actionable error and investigate before replacing it.
+14. Do not silently use a remote API as a fallback.
+
+ACCEPTANCE CRITERIA - ASR works on the test clip and returns a
+transcript with timestamps. - At least two translation candidates are
+compared, or the report explains why a second candidate could not be
+tested. - At least one Hindi speech-generation attempt has a recorded
+result or a clear blocker. - Model requirements and licenses are
+documented. - Runtime and memory are measured, not guessed. - A
+recommended baseline stack is chosen from actual evidence.
+
+PHASE 2 OUTPUT - Swappable model adapters. - Benchmark scripts and
+results. - Selected baseline model configuration. - Known limitations
+and a documented fallback. - No claim of perfect voice preservation.
+
+STOP AFTER PHASE 2. Do not start the full pipeline until the user
+approves the benchmark findings.
+
+============================================================ PHASE 3 —
+END-TO-END AUDIO DUBBING PIPELINE
+============================================================
+
+GOAL Produce a translated Hindi audio track from a short English video,
+with editable text and consistent timing metadata.
+
+CODEX TASKS 1. Implement safe media probing and audio extraction with
+FFmpeg. 2. Validate input formats, duration, file size, audio stream
+presence, and output paths. 3. Implement ASR through the selected
+adapter. 4. Store segment start/end times, source text, speaker ID (if
+known), translated text, and review status in a structured schema. 5.
+Implement translation with neighboring dialogue context where supported.
+6. Preserve names, intent, idioms, and conversational style. Allow a
+user to edit the Hindi translation before TTS. 7. Implement TTS adapter
+using the model selected in Phase 2. 8. Support a user-provided
+authorized voice reference only if the selected model supports it.
+Validate duration and audio format and explain how the reference is
+used. 9. Generate audio per segment or small groups as required by the
+model. Avoid excessive fragmentation that harms prosody. 10. Add timing
+adjustment: - Compare generated duration with target segment duration. -
+Prefer natural translation shortening/rewriting and sensible pauses. -
+Use moderate time stretching only within safe limits. - Do not force
+extreme speed changes that make speech unnatural. - Record segments that
+cannot fit. 11. Add a transcript correction/retry mechanism. 12. Save
+intermediate artifacts separately from final output. 13. Implement job
+status, stage progress, logs, cancellation at safe boundaries, and
+meaningful errors. 14. Add unit tests using mocked model adapters so
+most tests do not require GPU models. 15. Add an integration test that
+runs only when the user has installed and configured the real model.
+
+ACCEPTANCE CRITERIA - One short single-speaker clip can be transcribed,
+translated, and synthesized locally. - The user can review/edit the
+Hindi text before generating the final audio. - Every segment has valid
+timing metadata. - Failed segments are reported clearly and do not
+corrupt the entire job. - Source files remain unchanged. - A test run
+produces a playable Hindi audio file and a stage-by-stage report.
+
+PHASE 3 OUTPUT - Functional audio dubbing pipeline. - Editable
+transcript representation. - Test suite and example command. - Benchmark
+report for the end-to-end audio job.
+
+STOP AFTER PHASE 3. Do not add video reconstruction or lip sync yet.
+
+============================================================ PHASE 4 —
+VIDEO RECONSTRUCTION, AUDIO MIXING, AND SUBTITLES
+============================================================
+
+GOAL Create a synchronized MP4 with generated Hindi dialogue and
+optional preserved background audio.
+
+CODEX TASKS 1. Use FFmpeg to create a new output file. Never modify the
+original video. 2. Add optional dialogue/music separation through a
+configurable adapter. 3. If separation is disabled or fails, provide a
+documented fallback that uses the original audio or a user-selected
+audio mix. 4. Mix the Hindi dialogue with the selected background track.
+Prevent clipping and preserve intelligibility. 5. Use conservative gain
+normalization and audio fades where needed. Avoid hard-coded settings
+that damage quiet or loud scenes. 6. Align the generated dialogue with
+its timestamps and the source video duration. 7. Generate Hindi SRT
+subtitles from the final reviewed translation, using the same timing
+data as the dubbing pipeline. 8. Support output options for video
+container, subtitle export, and audio-only preview. 9. Validate the
+final file with ffprobe and a playback smoke test when feasible. 10.
+Record warnings for missing audio, timing overrun, failed separation, or
+export problems. 11. Add tests for path handling, subtitle timestamps,
+audio/video duration validation, and command construction. 12. Lip sync
+is not part of this phase unless explicitly requested after the base
+export is reliable.
+
+ACCEPTANCE CRITERIA - A short source video produces a new playable MP4
+with Hindi dubbing. - Original video remains untouched. - Optional Hindi
+subtitles match the reviewed dialogue. - The audio mix is not
+unintentionally clipped or muted. - Output duration and streams are
+validated. - The job report lists all warnings and model versions.
+
+PHASE 4 OUTPUT - Video export service. - Audio mixing and subtitle
+support. - Integration tests and sample output. - Documented quality
+limitations.
+
+STOP AFTER PHASE 4. Do not build both interfaces in the same
+implementation pass.
+
+============================================================ PHASE 5 —
+DESKTOP AND LOCAL WEB APPLICATIONS
+============================================================
+
+GOAL Expose the same tested local pipeline through a usable Windows
+desktop app and browser interface.
+
+BACKEND TASKS 1. Create FastAPI endpoints for: - Health and local model
+status. - Create job and validate input. - Upload/select input through
+safe local mechanisms. - Job status and progress. - Transcript and
+translation retrieval/update. - Start synthesis/rendering. - Cancel
+job. - List and open only that job’s output files. 2. Bind to 127.0.0.1
+by default. 3. Validate file paths and prevent path traversal. 4. Limit
+concurrent GPU jobs to one by default. 5. Use clear API schemas and
+consistent error responses. 6. Do not expose unrestricted filesystem
+browsing or arbitrary shell execution. 7. Document the local API.
+
+DESKTOP UI TASKS 1. Use PySide6. 2. Create a clean, accessible UI
+with: - Input video selection. - Output directory selection. - Local
+model/status panel. - Start, cancel, and retry controls. - Stage
+progress and logs. - Editable English transcript and Hindi
+translation. - Voice-reference selection where supported. - Audio
+preview. - Export settings and final output link. 3. Keep the UI
+responsive while jobs run. 4. Show errors in plain language and offer
+logs for troubleshooting.
+
+WEB UI TASKS 1. Use React + Vite and a maintainable component structure.
+2. Connect only to the local FastAPI backend by default. 3. Provide the
+same essential workflow as desktop. 4. Display upload/selection status,
+transcript editing, progress, preview, and export. 5. Add clear
+local-only/privacy indicators. 6. Handle backend-not-running, connection
+failure, job cancellation, and large files gracefully. 7. Do not create
+a publicly hosted service or remote inference pathway in this phase.
+
+TESTING - API unit and integration tests. - UI smoke test for core
+workflow. - Confirm desktop and web use the same backend services. -
+Confirm GPU jobs are serialized by default. - Confirm the app never
+uploads media automatically. - Test on a clean Windows setup using
+documented instructions.
+
+ACCEPTANCE CRITERIA - Both interfaces can run the same short test job. -
+Progress and failures are displayed accurately. - The user can edit
+Hindi dialogue before synthesis. - Output can be previewed and opened
+from the UI. - All inference remains local. - Desktop and web do not
+contain duplicated pipeline implementations.
+
+PHASE 5 OUTPUT - Working Windows desktop UI. - Working local web UI. -
+Shared FastAPI service. - Setup and user guides.
+
+STOP AFTER PHASE 5. Lip sync and advanced optimization are separate
+optional work.
+
+============================================================ PHASE 6 —
+QUALITY IMPROVEMENT, MULTI-SPEAKER SUPPORT, AND RELEASE
+============================================================
+
+GOAL Improve output quality based on benchmark evidence and prepare a
+reliable local release.
+
+CODEX TASKS 1. Expand benchmarks to several authorized clips with
+neutral, fast, emotional, noisy, and multi-speaker speech. 2. Add
+speaker diarization and stable speaker profiles if the selected
+components work reliably. 3. Allow per-speaker voice-reference selection
+and maintain consistent speaker mapping throughout a job. 4. Improve
+emotional delivery only through model-supported controls or verified
+approaches. Do not fabricate unsupported controls. 5. Improve Hindi
+dialogue adaptation for timing while retaining meaning. 6. Add optional
+source separation with a clear quality comparison against the
+no-separation output. 7. Evaluate lip-sync models only after verifying
+their license, local requirements, and input/output limitations. Keep
+the feature optional and user-controlled. 8. Add final benchmark
+comparisons against the Phase 2 baseline. 9. Add quality presets such
+as: - Fast: smaller models and fewer optional processing stages. -
+Balanced: recommended default. - Quality: slower, more detailed
+processing within available hardware. Presets must reflect real
+supported settings; do not label a preset “best” without results. 10.
+Add job cleanup settings, disk-space warnings, model cache management,
+and recovery after interrupted jobs. 11. Add packaging for Windows where
+feasible. Avoid bundling large model weights unless licenses permit and
+the user explicitly chooses it. 12. Create release documentation, model
+license inventory, known limitations, and troubleshooting steps. 13. Run
+the full test suite and perform a clean installation test. 14. Produce a
+final benchmark report with raw data and a concise human-reviewed
+summary.
+
+ACCEPTANCE CRITERIA - Multi-speaker support is demonstrated on a real
+test clip or documented as unsupported. - Voice consistency and emotion
+quality are evaluated by listening, not only automatic metrics. -
+Optional processing can be disabled when it lowers quality or exceeds
+hardware limits. - The final release can be installed and run using
+documented steps. - No unverified quality claims are made. - No cloud
+dependency is introduced. - All known model and licensing limitations
+are disclosed.
+
+PHASE 6 OUTPUT - Improved model/configuration defaults. - Expanded
+benchmark report. - Optional advanced features. - Windows release
+package or reproducible launch instructions. - Final README, privacy
+guide, and known-limitations list.
+
+============================================================ 4.
+ENGINEERING REQUIREMENTS FOR ALL PHASES
+============================================================
+
+ERROR HANDLING - Use structured exceptions and actionable messages. -
+Include the failed pipeline stage, a short explanation, and a safe next
+step. - Keep detailed logs local and do not log transcript/audio content
+by default. - Never swallow exceptions silently. - Retry only transient
+failures; do not repeatedly retry invalid inputs or out-of-memory
+errors.
+
+PERFORMANCE - Keep one GPU-heavy stage active at a time by default. -
+Load models lazily and release them after use when practical. - Expose
+device selection only when the option has been tested. - Monitor memory
+before large operations where possible. - Use chunked processing for
+longer clips. - Warn before jobs that exceed configurable duration or
+disk-space limits. - Do not promise real-time performance.
+
+SECURITY AND PRIVACY - Default API host: 127.0.0.1. - No telemetry,
+analytics, remote logging, automatic uploads, or remote model
+inference. - Sanitize uploaded filenames and use generated job IDs. -
+Restrict file access to approved job directories. - Do not allow
+arbitrary paths or command arguments from the UI. - Use safe subprocess
+argument lists rather than shell string concatenation. - Do not store
+voice references longer than needed without explicit user choice. - Add
+a clear delete-job-data function, with confirmation. - Keep user media,
+logs containing personal paths, model weights, and generated outputs out
+of Git. - Clearly explain that model downloads and software updates may
+contact external sites when the user initiates them.
+
+QUALITY - Keep source transcript, corrected transcript, translated text,
+generated speech, and final timing linked by segment IDs. - Preserve the
+reviewed translation; do not silently rewrite it during rendering. -
+Report when timing adjustment changes speech speed or pauses. - Keep raw
+and processed audio separate for comparison. - Provide audio preview
+before final rendering. - Keep the original input immutable.
+
+TESTS - Unit tests should not require downloaded models or a GPU. - Use
+fake/mock model adapters for most CI tests. - Real model tests must be
+opt-in and document the required model checkpoint. - Test malformed
+input, missing audio, unsupported codec, empty transcript, translation
+failure, TTS failure, cancellation, insufficient disk space, and export
+failure. - Run formatters, linting, type checks, and tests supported by
+the repository. - Do not report tests as passed unless the command
+actually ran and returned success.
+
+============================================================ 5. REQUIRED
+CODEX WORKFLOW AND REPORT FORMAT
+============================================================
+
+At the start of each phase: 1. Read the project README and relevant
+docs. 2. Inspect the repository tree, dependency files, and git status.
+3. Summarize current state and identify risks. 4. List the exact tasks
+planned for this phase. 5. Ask before destructive changes, major
+architecture changes, or adding paid/external services.
+
+During the phase: 1. Make small, coherent changes. 2. Explain important
+design decisions. 3. Add tests alongside functionality. 4. Run tests and
+inspect failures. 5. Update documentation when behavior or setup
+changes. 6. Keep unrelated files unchanged. 7. Do not proceed to later
+phases without user approval.
+
+At the end of each phase, return this report:
+
+PHASE: STATUS: PASS / PARTIAL / BLOCKED
+
+IMPLEMENTED: - List actual changes.
+
+FILES CREATED OR MODIFIED: - List paths and purpose.
+
+COMMANDS RUN: - Exact commands.
+
+TEST RESULTS: - Actual test count and pass/fail status. - State if tests
+were not run and why.
+
+HARDWARE / MODEL RESULTS: - Actual VRAM, RAM, runtime, and output
+observations when measured. - Model names and exact revisions. - Never
+invent values.
+
+KNOWN LIMITATIONS: - List remaining issues and workarounds.
+
+NEXT PHASE: - List prerequisites and ask for approval before continuing.
+
+============================================================ 6. FIRST
+MESSAGE TO GIVE CODEX
+============================================================
+
+Copy the following prompt into Codex when this file is in the project
+root:
+
+“Read MASTER_PROJECT_PLAN.txt completely. We are beginning Phase 1 only:
+Repository Audit, Environment, and Feasibility.
+
+First inspect the current repository and git status. Do not overwrite
+existing work or implement later phases. Report the current structure
+and any risks before making changes. Then implement only the Phase 1
+tasks from MASTER_PROJECT_PLAN.txt, keeping the project fully local and
+compatible with a Windows laptop using an NVIDIA RTX 4050 with 6 GB VRAM
+and 16 GB RAM.
+
+Do not download or integrate every AI model yet. Verify the environment,
+Python/PyTorch GPU access, FFmpeg/ffprobe, project imports, local paths,
+privacy settings, and .gitignore. Create or update the setup and
+architecture documentation and the environment-check/smoke-test scripts.
+Use actual commands and actual test results; do not invent success or
+performance claims. Preserve unrelated existing functionality. At the
+end, provide the exact phase report format required by the plan and
+stop. Do not start Phase 2 until I approve it.”
+
+============================================================ 7. FINAL
+PROJECT DEFINITION
+============================================================
+
+The completed product is a local AI dubbing studio, not merely a text
+translator. It should provide a measured, repeatable workflow from
+English video to Hindi-dubbed video, with editable translations, tested
+voice-reference generation, careful timing, optional background-audio
+preservation, subtitles, progress reporting, and both desktop and local
+web interfaces.
+
+The project must prefer verified quality over marketing claims. The
+first meaningful success is a natural, intelligible Hindi dub of a short
+single-speaker clip on the user’s laptop. Every later phase builds on
+that verified result.

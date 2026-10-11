@@ -1,0 +1,37 @@
+# Python environments and generated files
+.venv/
+.venv*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration, credentials, and logs
+.env
+.env.*
+!.env.example
+*.log
+logs/
+secrets/
+
+# User media, jobs, models, and generated benchmark data
+data/
+models/
+model_cache/
+outputs/
+benchmarks/clips/
+benchmarks/results/
+*.wav
+*.mp3
+*.mp4
+*.mkv
+
+# Common local tool state
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
