@@ -1,6 +1,7 @@
 # Phase 1 environment report
 
 Audit date: 2026-10-11
+Status: **PASS — Phase 1 environment and CUDA smoke verification complete.**
 
 ## Observed environment
 
@@ -17,20 +18,20 @@ Audit date: 2026-10-11
 - Existing `.venv`: Python 3.14.2 with pip 25.3. It was not recreated,
   modified, or used to install packages.
 - A separate `.venv310` was created from the already-installed Python
-  3.10.11 runtime. It contains only pip 23.0.1 and occupies 18.31 MiB;
-  no AI packages or models were installed.
+  3.10.11 runtime. It now contains pip 26.2.1 and CUDA-enabled PyTorch
+  2.14.1+cu126. The original `.venv` was not modified.
 - Total physical RAM: 15.71 GiB. Available RAM was 2.81 GiB before
   creating `.venv310`, 2.52 GiB immediately after, and 2.52 GiB during
   both environment-report runs. These are time-specific system values,
   not application peak-memory measurements.
 - D: drive: 103.42 GiB free before venv creation and 103.40 GiB after.
-- Before the PyTorch resolver dry run on 2026-10-11, available RAM was
-  7.72 GiB, D: had 103.40 GiB free, and `nvidia-smi` reported 5920 MiB
-  free VRAM.
-- After the resolver dry run, available RAM was 7.61 GiB and D: still had
-  103.40 GiB free; no large PyTorch/CUDA wheels were downloaded.
-- PyTorch is absent from both `.venv` and `.venv310`; both environment
-  reports accurately return `not_installed`.
+- Immediately before PyTorch installation, available RAM was 7.20 GiB,
+  D: had 103.40 GiB free, and `nvidia-smi` reported 5920 MiB free VRAM.
+- After installing Torch and running CUDA tests, available RAM measured
+  6.30 GiB initially and 6.38 GiB during the final report; D: had
+  99.36 GiB free.
+- PyTorch is installed only in `.venv310`; `.venv` remains Python 3.14.2
+  with pip 25.3 and no Torch package.
 - Git status before this task's documentation change was clean on
   `main`, tracking `origin/main`.
 - No AI models or model weights were downloaded.
@@ -48,6 +49,12 @@ Commands run against both Python environments:
   completed with equivalent results and correctly identifies Windows 11.
 - `.venv310\Scripts\python.exe scripts\run_smoke_test.py` — passed
   the same three checks.
+- `.venv310\Scripts\python.exe -m pip check` — passed; no broken
+  requirements.
+- CUDA runtime test — passed: PyTorch `2.14.1+cu126`, CUDA build `12.6`,
+  `torch.cuda.is_available() == True`, device `NVIDIA GeForce RTX 4050
+  Laptop GPU`, and tensor `[1, 2, 3] * 2 + 1` evaluated on `cuda:0` to
+  `[3, 5, 7]`.
 - Python compilation of `scripts` and `voxsyn_ai` passed in the existing
   Python 3.14 environment.
 - Editor diagnostics for the three Python source files reported no
@@ -70,42 +77,87 @@ pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu12
 ```
 
 The installed Python 3.10.11 meets PyTorch's documented base Python
-minimum. A resolver-only, no-install check was run in `.venv310` using
-the official CUDA 12.6 index:
+minimum. The earlier pip 23.0.1 dry run failed on inconsistent
+`typing-extensions` wheel metadata and missing `flit_core` from the
+CUDA-only index.
+
+Official pip documentation describes `--dry-run --report` as resolving
+an install plan without installing packages. Pip was upgraded only
+inside `.venv310`, using the official PyPI index:
 
 ```powershell
-.\.venv310\Scripts\python.exe -m pip install --dry-run --no-cache-dir --report "$env:TEMP\voxsyn-pytorch-dry-run.json" torch torchvision --index-url https://download.pytorch.org/whl/cu126
+.\.venv310\Scripts\python.exe -m pip install --upgrade pip --index-url https://pypi.org/simple
 ```
 
-The resolver identified `torch-2.14.1+cu126-cp310-cp310-win_amd64` and
-`torchvision-0.29.1+cu126-cp310-cp310-win_amd64`, but **failed before
-installation**. It rejected the `typing-extensions 4.16.0` wheel
-metadata from the configured index as having an inconsistent project
-name. The active pip was 23.0.1. Pip fell back to the source archive,
-then could not find
-`flit_core<4,>=3.11` for its isolated build environment in the
-CUDA-only index. Pip exited with code 1. Some small package artifacts
-were fetched for metadata/build preparation (133.2 kB Jinja2 wheel and
-113.6 kB typing-extensions source archive); the large PyTorch/CUDA
-wheels were not installed. No AI models were downloaded.
+It upgraded pip from 23.0.1 to 26.2.1 (1.8 MB downloaded). That alone
+resolved the prior metadata/build-isolation failure. The original
+`.venv` retains pip 25.3.
 
-Per the stop-on-failure instruction, no alternate index, pip upgrade,
-or retry was attempted. PyTorch remains absent from `.venv310` and
-`.venv`; `torch.cuda.is_available()`, GPU tensor computation, and
-PyTorch/driver CUDA compatibility remain **unverified**. The exact
-wheel download size was not established because the resolver failed
-before producing an install plan. No PyTorch installation was started.
-Immediately after the resolver check, 7.61 GiB RAM was available and
-103.40 GiB disk remained free. Recheck resources before any later
-installation attempt.
+The official PyTorch Windows/Pip/Python/CUDA 12.6 selector showed Stable
+2.14.1 and this command:
+
+```powershell
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+For the minimal CUDA smoke test, the no-install resolver check omitted
+`torchvision` because no vision package is needed for a tensor test:
+
+```powershell
+.\.venv310\Scripts\python.exe -m pip install --dry-run --no-cache-dir --report "$env:TEMP\voxsyn-pytorch-torchonly.json" torch --index-url https://download.pytorch.org/whl/cu126
+```
+
+The PyTorch CUDA 12.6 wheel index was used as the **single** package
+index for Torch and dependency resolution. The pip upgrade used
+`https://pypi.org/simple`. Dependencies resolved to package artifacts
+hosted on PyPI's `files.pythonhosted.org` where applicable; no
+`--extra-index-url` was used, avoiding ambiguous index priority.
+
+The successful dry run selected:
+
+| Package | Version |
+|---|---:|
+| torch | 2.14.1+cu126 |
+| filelock | 3.32.3 |
+| fsspec | 2026.7.0 |
+| Jinja2 | 3.1.6 |
+| MarkupSafe | 3.0.3 |
+| mpmath | 1.3.0 |
+| networkx | 3.4.2 |
+| setuptools | 78.1.0 |
+| sympy | 1.14.0 |
+| typing_extensions | 4.16.0 |
+
+HTTP `Content-Length` headers for the planned packages totaled about
+2492.02 MiB; the Torch wheel was 2482.18 MiB. Pip reported downloading
+the Torch wheel as 2602.8 MB. Installation succeeded in `.venv310`.
+Free space on D: changed from 103.40 GiB before install to 99.36 GiB
+after tests, a 4.04 GiB difference. No `torchvision`, NumPy, or AI
+models were installed.
+
+The runtime check produced:
+
+```text
+torch.__version__=2.14.1+cu126
+torch.version.cuda=12.6
+torch.cuda.is_available()=True
+gpu=NVIDIA GeForce RTX 4050 Laptop GPU
+tensor_device=cuda:0
+tensor_result=[3, 5, 7]
+```
+
+PyTorch emitted a warning that NumPy is not installed when initializing
+NumPy conversion support; the GPU computations still passed and
+`pip check` found no broken requirements. NumPy was not added because
+it is not required for the tested CUDA tensor operation.
 
 ## Resource-budget interpretation
 
 The configured 10 GiB target and 12 GiB ceiling refer to **application
-RAM**, not total system RAM. Neither limit has been validated by model
-workloads. Available RAM was about 7.72 GiB immediately before and
-7.61 GiB immediately after the resolver-only PyTorch check; no model
-workload is recorded here.
+RAM**, not total system RAM. They have not been validated by AI model
+workloads. Available system RAM was 7.20 GiB immediately before Torch
+installation and 6.30 GiB after the CUDA tests. These are machine-level
+readings, not a measurement of the application's peak RAM use.
 
 The workspace preserves `LogoIcon.png`, `config/default.json`, and the
 original `.venv`. The new `.venv310` is separately ignored by Git

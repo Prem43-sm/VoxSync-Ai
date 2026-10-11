@@ -2,9 +2,12 @@
 
 ## Current phase
 
-The project is in Phase 1: repository audit, environment, and feasibility.
-The current code is only a shared-core scaffold and environment check.
-There is no dubbing pipeline or UI yet; later phases require user approval.
+Phase 1 (repository audit, environment, and feasibility) is complete.
+Python 3.10.11, FFmpeg/ffprobe, and PyTorch CUDA tensor execution on the
+RTX 4050 were verified in `.venv310`. The original Python 3.14.2 `.venv`
+remains untouched. The current code is only a shared-core scaffold and
+environment check: there is no dubbing pipeline or UI yet. Phase 2
+requires user approval.
 
 ## Brand and local assets
 

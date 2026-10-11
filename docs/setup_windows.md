@@ -38,17 +38,37 @@ do not recreate it:
 Do not overwrite an existing environment without checking which Python
 it uses. In the audited workspace, `.venv` uses Python 3.14.2 and remains
 untouched. `.venv310` uses Python 3.10.11 and contains only the default
-pip installation; no PyTorch or AI model packages were installed. The
+environment plus the Phase 1 CUDA-verification packages; no AI models
+were installed. The
 official [PyTorch install guide](https://pytorch.org/get-started/locally/)
 currently lists Python 3.10 or later as the stable release minimum. This
 does not verify that a particular CUDA wheel or future model package
 works in this environment.
 
-The official selector command and the failed, no-install dependency
-resolution attempt are documented in
-[`dependency_environment.md`](./dependency_environment.md). Do not
-work around that failure by selecting a different CUDA index until the
-package-index dependency-resolution issue is understood.
+The official selector command and the initial resolver failure are
+documented in [`dependency_environment.md`](./dependency_environment.md).
+The resolver issue was resolved by upgrading pip **inside
+`.venv310` only**. The documented CUDA test uses the official PyTorch
+CUDA 12.6 wheel index as the single index for Torch and its dependencies;
+pip itself is upgraded from official PyPI. Do not add an extra package
+index. The verified commands were:
+
+```powershell
+.\.venv310\Scripts\python.exe -m pip install --upgrade pip --index-url https://pypi.org/simple
+.\.venv310\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+```
+
+The CUDA check is:
+
+```powershell
+.\.venv310\Scripts\python.exe -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0)); x=torch.tensor([1,2,3], device='cuda'); print((x*2+1).tolist())"
+```
+
+On the audited machine this reported PyTorch `2.14.1+cu126`, CUDA
+available, the RTX 4050 Laptop GPU, and tensor output `[3, 5, 7]`.
+Installation downloaded a 2602.8 MB Torch wheel; the complete resolved
+dependency plan was about 2492 MiB by HTTP content-length estimates.
+Do not run these install commands in the original `.venv`.
 
 ## Environment report
 
