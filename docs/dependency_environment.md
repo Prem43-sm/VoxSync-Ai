@@ -24,10 +24,15 @@ Audit date: 2026-10-11
   both environment-report runs. These are time-specific system values,
   not application peak-memory measurements.
 - D: drive: 103.42 GiB free before venv creation and 103.40 GiB after.
+- Before the PyTorch resolver dry run on 2026-10-11, available RAM was
+  7.72 GiB, D: had 103.40 GiB free, and `nvidia-smi` reported 5920 MiB
+  free VRAM.
+- After the resolver dry run, available RAM was 7.61 GiB and D: still had
+  103.40 GiB free; no large PyTorch/CUDA wheels were downloaded.
 - PyTorch is absent from both `.venv` and `.venv310`; both environment
   reports accurately return `not_installed`.
-- Git metadata is absent at the project root, so a branch, tracked-file
-  list, and dirty-worktree status cannot be reported.
+- Git status before this task's documentation change was clean on
+  `main`, tracking `origin/main`.
 - No AI models or model weights were downloaded.
 
 ## Phase 1 validation results
@@ -56,32 +61,51 @@ the check was rerun in both Python environments.
 ## PyTorch and CUDA status
 
 The official [PyTorch installation guide](https://pytorch.org/get-started/locally/)
-currently states that stable PyTorch requires Python 3.10 or later. The
-installed Python 3.10.11 meets that base-version requirement. This does
-not confirm a specific Windows CUDA wheel, driver/runtime compatibility,
-or GPU execution.
+currently states that stable PyTorch requires Python 3.10 or later. Its
+Windows/Pip/Python/CUDA 12.6 selector showed Stable 2.14.1 and this
+command at the time of the check:
 
-CUDA verification remains **blocked**: PyTorch is not installed in
-either environment, so `torch.cuda.is_available()` has not been run.
-Installing CUDA-enabled PyTorch requires downloading PyTorch binaries
-and CUDA runtime dependency packages. The exact download size depends on
-the selected PyTorch/CUDA build and was not established; no package
-download or installation was started. This is a multi-package,
-multi-gigabyte installation that also needs additional disk space for
-extracted packages and can consume RAM during installation/import. With
-only about 2.5 GiB of system RAM available at the time of the checks,
-installation and first import should wait until the user approves the
-selected build and the machine has more free RAM. The 103.40 GiB free
-disk space is ample for a separate test environment, but does not remove
-the RAM constraint.
+```powershell
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+The installed Python 3.10.11 meets PyTorch's documented base Python
+minimum. A resolver-only, no-install check was run in `.venv310` using
+the official CUDA 12.6 index:
+
+```powershell
+.\.venv310\Scripts\python.exe -m pip install --dry-run --no-cache-dir --report "$env:TEMP\voxsyn-pytorch-dry-run.json" torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+The resolver identified `torch-2.14.1+cu126-cp310-cp310-win_amd64` and
+`torchvision-0.29.1+cu126-cp310-cp310-win_amd64`, but **failed before
+installation**. It rejected the `typing-extensions 4.16.0` wheel
+metadata from the configured index as having an inconsistent project
+name. The active pip was 23.0.1. Pip fell back to the source archive,
+then could not find
+`flit_core<4,>=3.11` for its isolated build environment in the
+CUDA-only index. Pip exited with code 1. Some small package artifacts
+were fetched for metadata/build preparation (133.2 kB Jinja2 wheel and
+113.6 kB typing-extensions source archive); the large PyTorch/CUDA
+wheels were not installed. No AI models were downloaded.
+
+Per the stop-on-failure instruction, no alternate index, pip upgrade,
+or retry was attempted. PyTorch remains absent from `.venv310` and
+`.venv`; `torch.cuda.is_available()`, GPU tensor computation, and
+PyTorch/driver CUDA compatibility remain **unverified**. The exact
+wheel download size was not established because the resolver failed
+before producing an install plan. No PyTorch installation was started.
+Immediately after the resolver check, 7.61 GiB RAM was available and
+103.40 GiB disk remained free. Recheck resources before any later
+installation attempt.
 
 ## Resource-budget interpretation
 
 The configured 10 GiB target and 12 GiB ceiling refer to **application
 RAM**, not total system RAM. Neither limit has been validated by model
-workloads. The current system already had only about 2.5 GiB free during
-checks, so keep setup lean and defer heavy package installation until
-resources are available and the intended build is selected.
+workloads. Available RAM was about 7.72 GiB immediately before and
+7.61 GiB immediately after the resolver-only PyTorch check; no model
+workload is recorded here.
 
 The workspace preserves `LogoIcon.png`, `config/default.json`, and the
 original `.venv`. The new `.venv310` is separately ignored by Git

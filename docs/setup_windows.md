@@ -44,6 +44,12 @@ currently lists Python 3.10 or later as the stable release minimum. This
 does not verify that a particular CUDA wheel or future model package
 works in this environment.
 
+The official selector command and the failed, no-install dependency
+resolution attempt are documented in
+[`dependency_environment.md`](./dependency_environment.md). Do not
+work around that failure by selecting a different CUDA index until the
+package-index dependency-resolution issue is understood.
+
 ## Environment report
 
 Run `scripts\check_environment.py` to report Python/OS, system RAM,
