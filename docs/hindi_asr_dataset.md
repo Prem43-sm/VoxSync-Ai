@@ -1,7 +1,7 @@
 # Hindi ASR dataset preparation
 
 Preparation date: 2026-10-11
-Status: **Downloaded and pair-checked; not ready for leakage-free evaluation.**
+Status: **Downloaded, pair-checked, and split by exact audio content for evaluation.**
 
 ## Source and license evidence
 
@@ -76,18 +76,57 @@ RAM target or 12 GiB ceiling.
 
 ### Evaluation leakage
 
-**802 of the 1,000 test filenames also occur in train, and each shared
-audio file has the same SHA-256 hash and matching transcript.** Thus
-only 198 test clips are unique to the test split. Do not use the
-published train/test split for leakage-free evaluation. Before Phase 2
-reports ASR metrics, construct a deterministic split by unique audio
-content (or obtain a separate held-out set) and record the split
-procedure.
+**802 of the 1,000 published test filenames also occur in train, and
+each shared audio file has the same SHA-256 hash and matching
+transcript.** The published split is therefore not safe for evaluation.
+
+The reproducible, derived manifests are in the separate ignored
+`data/datasets/hindi_asr_11k_splits/` directory. Generate them with the
+standard-library-only script:
+
+```powershell
+.\.venv310\Scripts\python.exe scripts\create_hindi_asr_split.py
+```
+
+The script verifies each source file against the SHA-256 inventory in
+the original `manifest.json`; it does not modify the downloaded
+dataset. It fails rather than overwriting an existing output directory.
+The default command is intended for the initial generation; to reproduce
+the files for comparison, pass a different, not-yet-existing `--output`
+directory.
+All rows with identical audio SHA-256 are collapsed to one unique
+content group after confirming their transcripts agree. Groups are
+ranked by `SHA-256("2026-10-11:" + audio_sha256)`; the first 10% (rounded
+to the nearest whole group, halves up) are assigned to evaluation and
+the rest to training. The seed is `2026-10-11`. The output manifest
+records the rule, source revision and manifest checksum, counts, and
+SHA-256 checksums of both JSONL files. Each JSONL item identifies its
+audio path, transcript, content hash, duplicate count, and source paths.
+
+Result for this snapshot:
+
+| Measure | Result |
+|---|---:|
+| Published source rows | 10,000 |
+| Unique exact-audio groups | 9,198 |
+| Duplicate content groups | 802 |
+| Redundant rows collapsed | 802 |
+| Training groups / manifest entries | 8,278 |
+| Evaluation groups / manifest entries | 920 |
+| Source rows represented in training / evaluation | 8,992 / 1,008 |
+| Exact audio hashes shared between derived training and evaluation | 0 |
+
+Exact-byte SHA-256 grouping does **not** detect near-duplicate
+recordings, including edited or re-encoded copies. This split is not
+speaker-disjoint, and transcript agreement does not establish transcript
+accuracy. Assess near-duplicates and speaker overlap before interpreting
+later benchmark results. The derived manifests and the source dataset
+remain ignored by Git.
 
 Pairing and basic media integrity were checked; transcript accuracy,
-clip duration, speaker overlap, and suitability for the dubbing task
-were not assessed. The source is read-speech ASR data, not validated
-dubbing evaluation material.
+clip duration, near-duplicate recordings, speaker overlap, and
+suitability for the dubbing task were not assessed. The source is
+read-speech ASR data, not validated dubbing evaluation material.
 
 ## Phase 2 boundary
 

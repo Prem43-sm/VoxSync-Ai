@@ -312,13 +312,16 @@ from Hugging Face at revision
 `dc161f4fcf07cdfcd3852d9467e66c81964c5e52`. Its Hub metadata and README
 declare CC0-1.0; the card reports Mozilla Common Voice Hindi as the
 source. The local dataset and SHA-256 manifest are under the ignored
-`data/datasets/hindi_asr_11k/` directory. All 10,000 audio/transcript
-pairs were matched, but 802 of the 1,000 test clips are byte-identical
-to training clips, leaving 198 unique test clips. Rebuild a
-leakage-free evaluation split before reporting benchmark metrics. This
-preparation did not download models, run inference, or begin training;
-the remaining Phase 2 tasks and acceptance criteria below are still
-pending. See `docs/hindi_asr_dataset.md` for the evidence and limits.
+`data/datasets/hindi_asr_11k/` directory. The published splits include
+802 exact duplicate audio groups across train and test. A reproducible
+derived split groups all 10,000 rows by complete-audio SHA-256, collapses
+802 redundant rows, and assigns 8,278 unique groups to training and 920
+to evaluation, with zero exact-hash overlap. Its seed/rule and
+near-duplicate/speaker-overlap limitations are documented in
+`docs/hindi_asr_dataset.md`; generated manifests are under the ignored
+`data/datasets/hindi_asr_11k_splits/` directory. No models were
+downloaded and no inference or training was run; the remaining Phase 2
+tasks and acceptance criteria below are still pending.
 
 CODEX TASKS 1. Create adapters/interfaces for ASR, translation, and TTS
 so models can be swapped without rewriting the application. 2. Do not
