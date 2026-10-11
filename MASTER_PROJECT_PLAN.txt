@@ -306,6 +306,20 @@ MODEL BENCHMARK LAB
 GOAL Select feasible local ASR, translation, and Hindi
 TTS/voice-reference components using real tests on the user’s hardware.
 
+DATA PREPARATION STATUS (2026-10-11) A user-authorized, dataset-only
+preparation step downloaded the public `dhruvkys/11k-asr` Hindi subset
+from Hugging Face at revision
+`dc161f4fcf07cdfcd3852d9467e66c81964c5e52`. Its Hub metadata and README
+declare CC0-1.0; the card reports Mozilla Common Voice Hindi as the
+source. The local dataset and SHA-256 manifest are under the ignored
+`data/datasets/hindi_asr_11k/` directory. All 10,000 audio/transcript
+pairs were matched, but 802 of the 1,000 test clips are byte-identical
+to training clips, leaving 198 unique test clips. Rebuild a
+leakage-free evaluation split before reporting benchmark metrics. This
+preparation did not download models, run inference, or begin training;
+the remaining Phase 2 tasks and acceptance criteria below are still
+pending. See `docs/hindi_asr_dataset.md` for the evidence and limits.
+
 CODEX TASKS 1. Create adapters/interfaces for ASR, translation, and TTS
 so models can be swapped without rewriting the application. 2. Do not
 build UI features in this phase. 3. Add a benchmark manifest format, for

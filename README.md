@@ -6,8 +6,11 @@ supplied project logo is [LogoIcon.png](./LogoIcon.png).
 The project follows the six implementation phases in
 [MASTER_PROJECT_PLAN.txt](./MASTER_PROJECT_PLAN.txt). Phase 1
 (repository audit, environment, and feasibility) is complete, including
-a verified CUDA tensor test. Phase 2 has not started and requires user
-approval.
+a verified CUDA tensor test. The user-authorized Hindi ASR dataset
+preparation is documented in
+[docs/hindi_asr_dataset.md](./docs/hindi_asr_dataset.md). Phase 2 model
+benchmarking, inference, and training have not started; no model weights
+were downloaded.
 
 ## Phase 1 quick checks
 
